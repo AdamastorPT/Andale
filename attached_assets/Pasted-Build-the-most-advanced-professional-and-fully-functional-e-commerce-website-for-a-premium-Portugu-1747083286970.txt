@@ -1,0 +1,113 @@
+Build the most advanced, professional, and fully functional e-commerce website for a premium Portuguese jewelry store named "DRBijuteria".
+
+🎯 GOAL:
+Deliver a production-ready, ultra-professional, and intuitive online store for DRBijuteria. The site must be secure, robust, scalable, and innovatively designed for both desktop and mobile — with automatic product sync from Stripe, integrated payments, and full user account management.
+
+💼 BRAND IDENTITY:
+- Elegant, feminine, and luxurious aesthetic
+- Soft UI with neutral tones (black, white, soft gray, pastel rose)
+- Font pairing: a serif for elegance + a modern sans-serif for clarity
+- Ultra-clean layout with intuitive navigation and minimal distractions
+
+🔧 TECH STACK:
+- Frontend: React.js + TailwindCSS + Framer Motion
+- Backend: Supabase (PostgreSQL + Auth + Storage + Edge Functions)
+- Payments & Products: Stripe
+- Deployment: Replit-optimized with support for Vercel or Netlify
+- Routing: React Router DOM
+- State Management: Zustand or Redux Toolkit
+- Email Services: Resend or Supabase Email Templates (for auth & order confirmations)
+
+🔐 USER AUTHENTICATION (via Supabase):
+- Secure email/password sign up and login
+- Email verification and password reset
+- OAuth login (Google, Apple - optional)
+- Auth-protected client area
+- Role-based access control (admin vs. client)
+
+🛍️ PRODUCTS & CATEGORIES:
+- Stripe acts as the single source of truth for products
+- Products are automatically synced from Stripe to the website via webhook
+- Display organized by dynamic categories (e.g., Earrings, Necklaces, Bracelets)
+- Product detail pages with:
+  - Title, images, price, description
+  - Available stock, sizes/variants
+  - Add to Cart button
+- Optional tags like “New”, “Best Seller”, “Limited Edition”
+
+🛒 SHOPPING CART:
+- Fully functional cart with live updates
+- Quantity adjustments, item removal
+- Cart persisted in local storage or Supabase (if user is logged in)
+- Cart preview on hover or sidebar drawer
+
+💳 CHECKOUT SYSTEM:
+- Ultra-professional, multi-step checkout
+- Integration with **Stripe Checkout**
+  - Secure payments
+  - Billing & shipping address collection
+  - VAT number (optional)
+  - Shipping methods
+- Post-payment webhook updates orders in Supabase
+- Custom order confirmation screen + email
+
+👤 CLIENT DASHBOARD:
+- View order history and statuses
+- Track shipping
+- Manage personal data (name, address, password)
+- Manage newsletter subscription
+- Download invoices (optional)
+
+🧠 ADMIN PANEL:
+- Login-protected admin area
+- Add/edit/remove product metadata (auto-synced with Stripe)
+- Manage categories, newsletter subscribers, and promo banners
+- View orders, user logs, and inventory alerts
+
+📦 DATABASE STRUCTURE (Supabase):
+- `users`: id, email, name, address, role
+- `orders`: id, user_id, cart_items, total, payment_status, shipping_status
+- `categories`: id, name, slug, description
+- `newsletter_subscribers`: id, email, confirmed_at
+- `stripe_products`: id, stripe_id, category_id, metadata (read-only from Stripe)
+- `logs`: id, user_id, action, timestamp
+
+🔔 FEATURES & ENHANCEMENTS:
+- Stripe product sync via webhook and Supabase edge function
+- Responsive, animated UI with smooth transitions (Framer Motion)
+- SEO-optimized pages (meta tags, OpenGraph, Schema markup)
+- Lazy loading for product images
+- Custom 404 and maintenance modes
+- Email notifications (order confirmations, shipping updates)
+- Sticky navbar, scroll animations, and cart summary at checkout
+- GDPR cookie consent + privacy policy pages
+- Optional: multi-language (EN/PT) toggle with i18n
+
+📨 NEWSLETTER:
+- Integrated form with email validation
+- Double opt-in via Supabase + confirmation email
+- Store in `newsletter_subscribers` and optionally sync with Mailchimp
+
+🚀 READY FOR DEPLOYMENT:
+- Clean folder structure (feature-based)
+- CI/CD-ready config
+- Environment variables for Supabase and Stripe
+- Full README and setup instructions
+- Responsive and cross-browser tested
+
+🛡️ SECURITY:
+- RLS (Row Level Security) in Supabase
+- Input validation and sanitization
+- Stripe secure webhooks with signature verification
+- Admin-only routes with JWT validation
+- Secure auth tokens and API key handling
+
+🧪 OPTIONAL EXTRAS:
+- AI product recommendation widget (using metadata or tags)
+- Social proof pop-ups (“X just bought Y”)
+- Referral program (unique code tracking)
+- Gift packaging option at checkout
+- Wishlist system
+- Real-time inventory badge (e.g., “Only 3 left!”)
+
+Provide the full React + Supabase project with complete code, ready to run in Replit, and fully integrated with Stripe for live product management and checkout. Include database schema setup, edge functions for Stripe sync, and webhooks for order tracking.
