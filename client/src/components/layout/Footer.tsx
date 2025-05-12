@@ -1,5 +1,6 @@
 import { Link } from 'wouter';
-import { Instagram, Facebook, Pinterest, Twitter, ArrowRight, Send, MapPin, Phone, Mail } from 'lucide-react';
+import { Instagram, Facebook, Send, MapPin, Phone, Mail } from 'lucide-react';
+import { RiPinterestFill, RiTwitterXLine } from 'react-icons/ri';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -80,10 +81,10 @@ const Footer = () => {
                   <Facebook className="h-5 w-5" />
                 </a>
                 <a href="https://pinterest.com" target="_blank" rel="noopener noreferrer" className="bg-white bg-opacity-10 hover:bg-opacity-20 transition-all p-2.5 rounded-full text-white" aria-label="Pinterest">
-                  <Pinterest className="h-5 w-5" />
+                  <RiPinterestFill className="h-5 w-5" />
                 </a>
                 <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="bg-white bg-opacity-10 hover:bg-opacity-20 transition-all p-2.5 rounded-full text-white" aria-label="Twitter">
-                  <Twitter className="h-5 w-5" />
+                  <RiTwitterXLine className="h-5 w-5" />
                 </a>
               </div>
             </motion.div>

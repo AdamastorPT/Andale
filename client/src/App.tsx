@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AnimatePresence } from "framer-motion";
 import { useCartStore } from "./lib/store";
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 
 // Pages
 import Home from "@/pages/home";
@@ -26,6 +26,12 @@ import CookieConsent from "@/components/ui/cookie-consent";
 import CartDrawer from "@/components/cart/CartDrawer";
 import SearchOverlay from "@/components/layout/SearchOverlay";
 import AuthModal from "@/components/auth/AuthModal";
+
+// Lazy-loaded components
+const SocialProofPopup = lazy(() => import("@/components/ui/social-proof-popup"));
+
+// Loading Fallback
+const LoadingFallback = () => null;
 
 function Router() {
   return (
@@ -68,6 +74,9 @@ function App() {
         <SearchOverlay />
         <AuthModal />
         <CookieConsent />
+        <Suspense fallback={<LoadingFallback />}>
+          <SocialProofPopup />
+        </Suspense>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
