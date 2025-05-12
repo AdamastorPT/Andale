@@ -11,7 +11,12 @@ import {
   insertCartItemSchema,
   insertNewsletterSubscriberSchema,
   insertOrderSchema,
-  insertOrderItemSchema
+  insertOrderItemSchema,
+  insertWishlistItemSchema,
+  insertArticleSchema,
+  resetPasswordSchema,
+  updatePasswordSchema,
+  updateProfileSchema
 } from "@shared/schema";
 
 // Ensure the STRIPE_SECRET_KEY environment variable is set
@@ -464,6 +469,238 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const subscribers = await storage.getAllNewsletterSubscribers();
       res.json(subscribers);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+  
+  // PROFILE ROUTES
+  
+  // Update user profile
+  app.patch('/api/profile', authenticateUser, async (req: any, res) => {
+    try {
+      const userData = updateProfileSchema.parse(req.body);
+      const updatedUser = await storage.updateUser(req.user.id, userData);
+      
+      const { password, ...userWithoutPassword } = updatedUser;
+      res.json(userWithoutPassword);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+  
+  // Update profile image
+  app.post('/api/profile/image', authenticateUser, async (req: any, res) => {
+    try {
+      const { imageUrl } = z.object({ imageUrl: z.string().url() }).parse(req.body);
+      const updatedUser = await storage.updateUserProfileImage(req.user.id, imageUrl);
+      
+      const { password, ...userWithoutPassword } = updatedUser;
+      res.json(userWithoutPassword);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+  
+  // Update user password
+  app.post('/api/profile/password', authenticateUser, async (req: any, res) => {
+    try {
+      const { password, confirmPassword } = updatePasswordSchema.parse(req.body);
+      
+      // Hash novo password
+      const hashedPassword = await bcrypt.hash(password, 10);
+      
+      const updatedUser = await storage.updateUserPassword(req.user.id, hashedPassword);
+      
+      const { password: _, ...userWithoutPassword } = updatedUser;
+      res.json(userWithoutPassword);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+  
+  // Request password reset
+  app.post('/api/auth/forgot-password', async (req, res) => {
+    try {
+      const { email } = resetPasswordSchema.parse(req.body);
+      const token = await storage.createPasswordResetToken(email);
+      
+      if (!token) {
+        // Não revelamos se o email existe ou não por segurança
+        return res.json({ message: 'Se o email existir, um link de redefinição será enviado' });
+      }
+      
+      // Aqui seria implementado o envio real de email
+      // Para fins de demonstração, vamos apenas retornar o token
+      res.json({ 
+        message: 'Link de redefinição enviado',
+        token: `${process.env.FRONTEND_URL || 'http://localhost:5000'}/reset-password?token=${token}`
+      });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+  
+  // Reset password with token
+  app.post('/api/auth/reset-password', async (req, res) => {
+    try {
+      const { token, password } = z.object({
+        token: z.string(),
+        password: z.string().min(6)
+      }).parse(req.body);
+      
+      // Hash novo password
+      const hashedPassword = await bcrypt.hash(password, 10);
+      
+      const success = await storage.resetPassword(token, hashedPassword);
+      
+      if (!success) {
+        return res.status(400).json({ message: 'Token inválido ou expirado' });
+      }
+      
+      res.json({ message: 'Senha redefinida com sucesso' });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+  
+  // WISHLIST ROUTES
+  
+  // Get user wishlist
+  app.get('/api/wishlist', authenticateUser, async (req: any, res) => {
+    try {
+      const wishlistItems = await storage.getWishlistByUserId(req.user.id);
+      res.json(wishlistItems);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+  
+  // Add to wishlist
+  app.post('/api/wishlist', authenticateUser, async (req: any, res) => {
+    try {
+      const wishlistItemData = insertWishlistItemSchema.parse({
+        ...req.body,
+        userId: req.user.id
+      });
+      
+      const wishlistItem = await storage.addToWishlist(wishlistItemData);
+      res.status(201).json(wishlistItem);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+  
+  // Remove from wishlist
+  app.delete('/api/wishlist/:id', authenticateUser, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      // Verify wishlist item belongs to user
+      const wishlistItem = await storage.getWishlistItem(id);
+      if (!wishlistItem || wishlistItem.userId !== req.user.id) {
+        return res.status(404).json({ message: 'Item não encontrado na lista de desejos' });
+      }
+      
+      await storage.removeFromWishlist(id);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+  
+  // Check if product is in wishlist
+  app.get('/api/wishlist/check/:productId', authenticateUser, async (req: any, res) => {
+    try {
+      const productId = parseInt(req.params.productId);
+      const isInWishlist = await storage.isProductInWishlist(req.user.id, productId);
+      
+      res.json({ isInWishlist });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+  
+  // ARTICLE ROUTES
+  
+  // Get all articles
+  app.get('/api/articles', async (req, res) => {
+    try {
+      const publishedOnly = req.query.published === 'true';
+      const articles = await storage.getAllArticles(publishedOnly);
+      res.json(articles);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+  
+  // Get article by slug
+  app.get('/api/articles/:slug', async (req, res) => {
+    try {
+      const { slug } = req.params;
+      const article = await storage.getArticleBySlug(slug);
+      
+      if (!article) {
+        return res.status(404).json({ message: 'Artigo não encontrado' });
+      }
+      
+      // Só retorna artigos publicados para o público
+      if (!article.published && (!req.user || req.user.role !== 'admin')) {
+        return res.status(404).json({ message: 'Artigo não encontrado' });
+      }
+      
+      res.json(article);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+  
+  // ADMIN ARTICLE ROUTES
+  
+  // Create article (admin only)
+  app.post('/api/admin/articles', authenticateUser, isAdmin, async (req: any, res) => {
+    try {
+      const articleData = insertArticleSchema.parse({
+        ...req.body,
+        authorId: req.user.id
+      });
+      
+      const article = await storage.createArticle(articleData);
+      res.status(201).json(article);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+  
+  // Update article (admin only)
+  app.patch('/api/admin/articles/:id', authenticateUser, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const article = await storage.getArticle(id);
+      
+      if (!article) {
+        return res.status(404).json({ message: 'Artigo não encontrado' });
+      }
+      
+      const updatedArticle = await storage.updateArticle(id, req.body);
+      res.json(updatedArticle);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+  
+  // Publish article (admin only)
+  app.post('/api/admin/articles/:id/publish', authenticateUser, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const article = await storage.getArticle(id);
+      
+      if (!article) {
+        return res.status(404).json({ message: 'Artigo não encontrado' });
+      }
+      
+      const publishedArticle = await storage.publishArticle(id);
+      res.json(publishedArticle);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }

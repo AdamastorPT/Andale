@@ -571,6 +571,129 @@ export class MemStorage implements IStorage {
   async getAllNewsletterSubscribers(): Promise<NewsletterSubscriber[]> {
     return Array.from(this.newsletterSubscribers.values());
   }
+
+  // Wishlist methods
+  async getWishlistItem(id: number): Promise<(WishlistItem & { product: Product }) | undefined> {
+    const wishlistItem = this.wishlistItems.get(id);
+    if (!wishlistItem) return undefined;
+    
+    const product = this.products.get(wishlistItem.productId);
+    if (!product) return undefined;
+    
+    return { ...wishlistItem, product };
+  }
+  
+  async getWishlistByUserId(userId: number): Promise<(WishlistItem & { product: Product })[]> {
+    const wishlistItems = Array.from(this.wishlistItems.values()).filter(item => item.userId === userId);
+    
+    return wishlistItems
+      .map(item => {
+        const product = this.products.get(item.productId);
+        if (!product) return null;
+        return { ...item, product };
+      })
+      .filter((item): item is (WishlistItem & { product: Product }) => item !== null);
+  }
+  
+  async addToWishlist(wishlistItem: InsertWishlistItem): Promise<WishlistItem> {
+    // Verifica se o produto existe
+    const product = await this.getProduct(wishlistItem.productId);
+    if (!product) throw new Error('Produto não encontrado');
+    
+    // Verifica se já existe na wishlist
+    const isInWishlist = await this.isProductInWishlist(wishlistItem.userId, wishlistItem.productId);
+    if (isInWishlist) {
+      throw new Error('Produto já está na lista de desejos');
+    }
+    
+    // Adiciona o item na wishlist
+    const id = this.wishlistItemId++;
+    const now = new Date();
+    const newWishlistItem: WishlistItem = {
+      ...wishlistItem,
+      id,
+      createdAt: now
+    };
+    
+    this.wishlistItems.set(id, newWishlistItem);
+    return newWishlistItem;
+  }
+  
+  async removeFromWishlist(id: number): Promise<void> {
+    this.wishlistItems.delete(id);
+  }
+  
+  async isProductInWishlist(userId: number, productId: number): Promise<boolean> {
+    return Array.from(this.wishlistItems.values()).some(
+      item => item.userId === userId && item.productId === productId
+    );
+  }
+  
+  // Article methods
+  async getArticle(id: number): Promise<Article | undefined> {
+    return this.articles.get(id);
+  }
+  
+  async getArticleBySlug(slug: string): Promise<Article | undefined> {
+    return Array.from(this.articles.values()).find(article => article.slug === slug);
+  }
+  
+  async createArticle(article: InsertArticle): Promise<Article> {
+    const id = this.articleId++;
+    const now = new Date();
+    
+    const newArticle: Article = {
+      ...article,
+      id,
+      excerpt: article.excerpt || null,
+      coverImage: article.coverImage || null,
+      published: article.published || false,
+      publishedAt: article.published ? now : null,
+      createdAt: now
+    };
+    
+    this.articles.set(id, newArticle);
+    return newArticle;
+  }
+  
+  async updateArticle(id: number, data: Partial<Article>): Promise<Article> {
+    const article = await this.getArticle(id);
+    if (!article) throw new Error('Artigo não encontrado');
+    
+    const updatedArticle = { ...article, ...data };
+    this.articles.set(id, updatedArticle);
+    return updatedArticle;
+  }
+  
+  async publishArticle(id: number): Promise<Article> {
+    const article = await this.getArticle(id);
+    if (!article) throw new Error('Artigo não encontrado');
+    
+    const now = new Date();
+    const publishedArticle = {
+      ...article,
+      published: true,
+      publishedAt: now
+    };
+    
+    this.articles.set(id, publishedArticle);
+    return publishedArticle;
+  }
+  
+  async getAllArticles(publishedOnly = false): Promise<Article[]> {
+    const articles = Array.from(this.articles.values());
+    
+    if (publishedOnly) {
+      return articles.filter(article => article.published);
+    }
+    
+    return articles;
+  }
+  
+  async getArticlesByAuthor(authorId: number): Promise<Article[]> {
+    return Array.from(this.articles.values())
+      .filter(article => article.authorId === authorId);
+  }
 }
 
 // Exporta a instância de armazenamento
