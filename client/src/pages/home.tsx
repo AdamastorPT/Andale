@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 // Components
 import ProductGrid from '@/components/products/ProductGrid';
 import { Helmet } from 'react-helmet';
+import HeroSection from '@/components/home/HeroSection';
 
 const fadeIn = {
   hidden: { opacity: 0, y: 20 },
@@ -83,30 +84,7 @@ const Home = () => {
       </Helmet>
 
       {/* Hero Section */}
-      <section className="relative h-[60vh] md:h-[80vh] overflow-hidden">
-        <img 
-          src="https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1920&h=1080" 
-          alt="Luxury jewelry collection" 
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center">
-          <motion.div 
-            className="text-center text-white max-w-md px-4"
-            initial="hidden"
-            animate="visible"
-            variants={fadeIn}
-            transition={{ duration: 0.6 }}
-          >
-            <h1 className="font-serif text-4xl md:text-5xl lg:text-6xl mb-4 leading-tight">Timeless Elegance</h1>
-            <p className="text-sm md:text-base mb-8">Discover our handcrafted collection of premium Portuguese jewelry</p>
-            <Link href="/category/all">
-              <Button className="bg-white text-black hover:bg-white/90 px-8 py-6">
-                SHOP NOW
-              </Button>
-            </Link>
-          </motion.div>
-        </div>
-      </section>
+      <HeroSection />
 
       {/* Categories Section */}
       <section className="py-16 px-4">
