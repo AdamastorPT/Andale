@@ -57,6 +57,22 @@ export interface IStorage {
   getOrdersByUserId(userId: number): Promise<(Order & { items: (OrderItem & { product: Product })[] })[]>;
   getAllOrders(): Promise<(Order & { user: Omit<User, 'password'>, items: (OrderItem & { product: Product })[] })[]>;
   
+  // Wishlist
+  getWishlistItem(id: number): Promise<(WishlistItem & { product: Product }) | undefined>;
+  getWishlistByUserId(userId: number): Promise<(WishlistItem & { product: Product })[]>;
+  addToWishlist(wishlistItem: InsertWishlistItem): Promise<WishlistItem>;
+  removeFromWishlist(id: number): Promise<void>;
+  isProductInWishlist(userId: number, productId: number): Promise<boolean>;
+  
+  // Articles
+  getArticle(id: number): Promise<Article | undefined>;
+  getArticleBySlug(slug: string): Promise<Article | undefined>;
+  createArticle(article: InsertArticle): Promise<Article>;
+  updateArticle(id: number, data: Partial<Article>): Promise<Article>;
+  publishArticle(id: number): Promise<Article>;
+  getAllArticles(publishedOnly?: boolean): Promise<Article[]>;
+  getArticlesByAuthor(authorId: number): Promise<Article[]>;
+  
   // Newsletter
   getNewsletterSubscriberByEmail(email: string): Promise<NewsletterSubscriber | undefined>;
   createNewsletterSubscriber(subscriber: InsertNewsletterSubscriber): Promise<NewsletterSubscriber>;
@@ -69,16 +85,20 @@ export class MemStorage implements IStorage {
   private categories: Map<number, Category>;
   private products: Map<number, Product>;
   private cartItems: Map<number, CartItem>;
+  private wishlistItems: Map<number, WishlistItem>;
   private orders: Map<number, Order>;
   private orderItems: Map<number, OrderItem>;
+  private articles: Map<number, Article>;
   private newsletterSubscribers: Map<number, NewsletterSubscriber>;
   
   private userId: number;
   private categoryId: number;
   private productId: number;
   private cartItemId: number;
+  private wishlistItemId: number;
   private orderId: number;
   private orderItemId: number;
+  private articleId: number;
   private newsletterId: number;
   
   constructor() {
@@ -86,16 +106,20 @@ export class MemStorage implements IStorage {
     this.categories = new Map();
     this.products = new Map();
     this.cartItems = new Map();
+    this.wishlistItems = new Map();
     this.orders = new Map();
     this.orderItems = new Map();
+    this.articles = new Map();
     this.newsletterSubscribers = new Map();
     
     this.userId = 1;
     this.categoryId = 1;
     this.productId = 1;
     this.cartItemId = 1;
+    this.wishlistItemId = 1;
     this.orderId = 1;
     this.orderItemId = 1;
+    this.articleId = 1;
     this.newsletterId = 1;
     
     // Initialize with some sample data
@@ -196,6 +220,10 @@ export class MemStorage implements IStorage {
     return Array.from(this.users.values()).find(user => user.email === email);
   }
   
+  async getUserByResetToken(token: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(user => user.resetToken === token);
+  }
+  
   async createUser(user: InsertUser): Promise<User> {
     const id = this.userId++;
     const now = new Date();
@@ -203,7 +231,11 @@ export class MemStorage implements IStorage {
       ...user, 
       id, 
       createdAt: now,
-      updatedAt: now
+      profileImage: null,
+      resetToken: null,
+      resetTokenExpiry: null,
+      stripeCustomerId: null,
+      language: user.language || 'pt-PT'
     };
     this.users.set(id, newUser);
     return newUser;
@@ -215,11 +247,62 @@ export class MemStorage implements IStorage {
     
     const updatedUser = { 
       ...user, 
-      ...data,
-      updatedAt: new Date() 
+      ...data
     };
     this.users.set(id, updatedUser);
     return updatedUser;
+  }
+  
+  async updateUserPassword(id: number, password: string): Promise<User> {
+    return this.updateUser(id, { password });
+  }
+  
+  async updateUserProfileImage(id: number, imageUrl: string): Promise<User> {
+    return this.updateUser(id, { profileImage: imageUrl });
+  }
+  
+  async createPasswordResetToken(email: string): Promise<string | null> {
+    const user = await this.getUserByEmail(email);
+    if (!user) {
+      return null;
+    }
+    
+    const token = Math.random().toString(36).substring(2, 15) + 
+                 Math.random().toString(36).substring(2, 15);
+    
+    const resetTokenExpiry = new Date();
+    resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 1); // Token válido por 1 hora
+    
+    const updatedUser = { 
+      ...user, 
+      resetToken: token,
+      resetTokenExpiry 
+    };
+    
+    this.users.set(user.id, updatedUser);
+    return token;
+  }
+  
+  async resetPassword(token: string, newPassword: string): Promise<boolean> {
+    const user = await this.getUserByResetToken(token);
+    if (!user || !user.resetTokenExpiry) {
+      return false;
+    }
+    
+    // Verifica se o token expirou
+    if (new Date() > user.resetTokenExpiry) {
+      return false;
+    }
+    
+    const updatedUser = { 
+      ...user, 
+      password: newPassword,
+      resetToken: null,
+      resetTokenExpiry: null
+    };
+    
+    this.users.set(user.id, updatedUser);
+    return true;
   }
   
   async updateStripeCustomerId(id: number, stripeCustomerId: string): Promise<User> {
