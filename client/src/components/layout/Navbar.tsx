@@ -3,6 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCartStore, useUIStore, useAuthStore } from '@/lib/store';
 import { Menu, Search, User, ShoppingBag, ChevronDown, X, Heart, Phone, Globe } from 'lucide-react';
+import Logo from './Logo';
 
 const Navbar = () => {
   const [location] = useLocation();
@@ -129,9 +130,9 @@ const Navbar = () => {
             </button>
 
             {/* Logo */}
-            <Link href="/" className="font-serif text-2xl md:text-3xl font-bold tracking-wider text-center flex-grow md:flex-grow-0 md:mr-10">
-              DRBijuteria
-            </Link>
+            <div className="flex-grow md:flex-grow-0 md:mr-10 text-center">
+              <Logo size="medium" />
+            </div>
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center space-x-10 flex-grow justify-center">
