@@ -5,6 +5,8 @@ import {
   Order, InsertOrder,
   OrderItem, InsertOrderItem,
   CartItem, InsertCartItem,
+  WishlistItem, InsertWishlistItem,
+  Article, InsertArticle,
   NewsletterSubscriber, InsertNewsletterSubscriber
 } from "@shared/schema";
 
@@ -13,9 +15,14 @@ export interface IStorage {
   // Users
   getUser(id: number): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByResetToken(token: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, data: Partial<User>): Promise<User>;
   updateStripeCustomerId(id: number, stripeCustomerId: string): Promise<User>;
+  updateUserPassword(id: number, password: string): Promise<User>;
+  updateUserProfileImage(id: number, imageUrl: string): Promise<User>;
+  createPasswordResetToken(email: string): Promise<string | null>;
+  resetPassword(token: string, newPassword: string): Promise<boolean>;
   getAllUsers(): Promise<User[]>;
   
   // Categories

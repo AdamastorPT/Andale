@@ -12,6 +12,10 @@ export const users = pgTable("users", {
   phone: text("phone"),
   role: text("role").default("user").notNull(),
   stripeCustomerId: text("stripe_customer_id"),
+  profileImage: text("profile_image"),
+  resetToken: text("reset_token"),
+  resetTokenExpiry: timestamp("reset_token_expiry"),
+  language: text("language").default("pt-PT").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -77,9 +81,38 @@ export const newsletterSubscribers = pgTable("newsletter_subscribers", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Wishlist Table
+export const wishlistItems = pgTable("wishlist_items", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  productId: integer("product_id").references(() => products.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Blog Articles Table
+export const articles = pgTable("articles", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  slug: text("slug").notNull().unique(),
+  content: text("content").notNull(),
+  excerpt: text("excerpt"),
+  coverImage: text("cover_image"),
+  authorId: integer("author_id").references(() => users.id),
+  published: boolean("published").default(false),
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Insert schemas 
 export const insertUserSchema = createInsertSchema(users)
-  .omit({ id: true, createdAt: true, stripeCustomerId: true });
+  .omit({ 
+    id: true, 
+    createdAt: true, 
+    stripeCustomerId: true, 
+    resetToken: true, 
+    resetTokenExpiry: true, 
+    profileImage: true 
+  });
 
 export const insertCategorySchema = createInsertSchema(categories)
   .omit({ id: true });
@@ -99,17 +132,44 @@ export const insertCartItemSchema = createInsertSchema(cartItems)
 export const insertNewsletterSubscriberSchema = createInsertSchema(newsletterSubscribers)
   .omit({ id: true, confirmedAt: true, createdAt: true });
 
+export const insertWishlistItemSchema = createInsertSchema(wishlistItems)
+  .omit({ id: true, createdAt: true });
+
+export const insertArticleSchema = createInsertSchema(articles)
+  .omit({ id: true, createdAt: true, publishedAt: true });
+
 // Extended schemas with validation
 export const registerUserSchema = insertUserSchema.extend({
   confirmPassword: z.string().min(6),
 }).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
+  message: "As senhas não coincidem",
   path: ["confirmPassword"],
 });
 
 export const loginUserSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
+  email: z.string().email("Por favor, insira um email válido"),
+  password: z.string().min(6, "A senha deve ter pelo menos 6 caracteres"),
+});
+
+export const resetPasswordSchema = z.object({
+  email: z.string().email("Por favor, insira um email válido"),
+});
+
+export const updatePasswordSchema = z.object({
+  password: z.string().min(6, "A senha deve ter pelo menos 6 caracteres"),
+  confirmPassword: z.string().min(6, "A senha deve ter pelo menos 6 caracteres"),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "As senhas não coincidem",
+  path: ["confirmPassword"],
+});
+
+export const updateProfileSchema = insertUserSchema.pick({
+  name: true,
+  address: true,
+  phone: true,
+  language: true,
+}).extend({
+  profileImage: z.string().optional(),
 });
 
 // Types
@@ -117,6 +177,9 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type RegisterUser = z.infer<typeof registerUserSchema>;
 export type LoginUser = z.infer<typeof loginUserSchema>;
+export type ResetPasswordUser = z.infer<typeof resetPasswordSchema>;
+export type UpdatePasswordUser = z.infer<typeof updatePasswordSchema>;
+export type UpdateProfileUser = z.infer<typeof updateProfileSchema>;
 
 export type Category = typeof categories.$inferSelect;
 export type InsertCategory = z.infer<typeof insertCategorySchema>;
@@ -132,6 +195,12 @@ export type InsertOrderItem = z.infer<typeof insertOrderItemSchema>;
 
 export type CartItem = typeof cartItems.$inferSelect;
 export type InsertCartItem = z.infer<typeof insertCartItemSchema>;
+
+export type WishlistItem = typeof wishlistItems.$inferSelect;
+export type InsertWishlistItem = z.infer<typeof insertWishlistItemSchema>;
+
+export type Article = typeof articles.$inferSelect;
+export type InsertArticle = z.infer<typeof insertArticleSchema>;
 
 export type NewsletterSubscriber = typeof newsletterSubscribers.$inferSelect;
 export type InsertNewsletterSubscriber = z.infer<typeof insertNewsletterSubscriberSchema>;
