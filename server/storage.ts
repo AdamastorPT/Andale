@@ -56,503 +56,432 @@ export interface IStorage {
   getAllNewsletterSubscribers(): Promise<NewsletterSubscriber[]>;
 }
 
-import { db } from './db';
-import { eq, and, desc, asc } from 'drizzle-orm';
-import bcrypt from 'bcryptjs';
-import * as schema from '@shared/schema';
-
-export class DrizzleStorage implements IStorage {
+// Memória temporária para armazenamento de dados
+export class MemStorage implements IStorage {
+  private users: Map<number, User>;
+  private categories: Map<number, Category>;
+  private products: Map<number, Product>;
+  private cartItems: Map<number, CartItem>;
+  private orders: Map<number, Order>;
+  private orderItems: Map<number, OrderItem>;
+  private newsletterSubscribers: Map<number, NewsletterSubscriber>;
+  
+  private userId: number;
+  private categoryId: number;
+  private productId: number;
+  private cartItemId: number;
+  private orderId: number;
+  private orderItemId: number;
+  private newsletterId: number;
+  
+  constructor() {
+    this.users = new Map();
+    this.categories = new Map();
+    this.products = new Map();
+    this.cartItems = new Map();
+    this.orders = new Map();
+    this.orderItems = new Map();
+    this.newsletterSubscribers = new Map();
+    
+    this.userId = 1;
+    this.categoryId = 1;
+    this.productId = 1;
+    this.cartItemId = 1;
+    this.orderId = 1;
+    this.orderItemId = 1;
+    this.newsletterId = 1;
+    
+    // Initialize with some sample data
+    this.initSampleData();
+  }
+  
+  private initSampleData() {
+    // Sample categories
+    const categories = [
+      { name: 'Brincos', slug: 'earrings', description: 'Brincos elegantes feitos com aço inoxidável' },
+      { name: 'Colares', slug: 'necklaces', description: 'Colares modernos e delicados para qualquer ocasião' },
+      { name: 'Pulseiras', slug: 'bracelets', description: 'Pulseiras elegantes e estilosas' },
+      { name: 'Anéis', slug: 'rings', description: 'Anéis exclusivos em aço inoxidável' }
+    ];
+    
+    for (const category of categories) {
+      this.createCategory(category);
+    }
+    
+    // Sample products
+    const products = [
+      { 
+        stripeId: 'prod_sample1', 
+        name: 'Brinco Pérola Dourado', 
+        description: 'Brinco elegante com pérola e acabamento em aço inoxidável dourado', 
+        price: "89.90", 
+        images: ['/assets/images/products/earring1.jpg'],
+        categoryId: 1,
+        stock: 15,
+        isNew: true,
+        isBestSeller: true,
+        isLimited: false,
+        metadata: {}
+      },
+      {
+        stripeId: 'prod_sample2',
+        name: 'Colar Coração Delicado',
+        description: 'Colar com pingente de coração em aço inoxidável',
+        price: "129.90",
+        images: ['/assets/images/products/necklace1.jpg'],
+        categoryId: 2,
+        stock: 10,
+        isNew: true,
+        isBestSeller: false,
+        isLimited: false,
+        metadata: {}
+      },
+      {
+        stripeId: 'prod_sample3',
+        name: 'Pulseira de Elos Prateada',
+        description: 'Pulseira de elos em aço inoxidável com acabamento prata',
+        price: "79.90",
+        images: ['/assets/images/products/bracelet1.jpg'],
+        categoryId: 3,
+        stock: 20,
+        isNew: false,
+        isBestSeller: true,
+        isLimited: false,
+        metadata: {}
+      },
+      {
+        stripeId: 'prod_sample4',
+        name: 'Anel Minimalista',
+        description: 'Anel minimalista em aço inoxidável',
+        price: "69.90",
+        images: ['/assets/images/products/ring1.jpg'],
+        categoryId: 4,
+        stock: 5,
+        isNew: false,
+        isBestSeller: false,
+        isLimited: true,
+        metadata: {}
+      }
+    ];
+    
+    for (const product of products) {
+      this.createProduct(product);
+    }
+    
+    // Create admin user
+    this.createUser({
+      email: 'admin@drbijuteria.com',
+      password: '$2a$10$ePkq71KKLU.vTJGdm/chJuXbZwkWJjxJI0wCZuSMWGeiZLRxrpsRy', // 'admin123'
+      name: 'Admin DR Bijuteria',
+      role: 'admin',
+      address: null,
+      phone: null,
+      stripeCustomerId: null
+    });
+  }
+  
   // User methods
-  async getUser(id: number): Promise<schema.User | undefined> {
-    const [user] = await db.select().from(schema.users).where(eq(schema.users.id, id));
-    return user;
+  async getUser(id: number): Promise<User | undefined> {
+    return this.users.get(id);
   }
   
-  async getUserByEmail(email: string): Promise<schema.User | undefined> {
-    const [user] = await db.select().from(schema.users).where(eq(schema.users.email, email));
-    return user;
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(user => user.email === email);
   }
   
-  async createUser(user: schema.InsertUser): Promise<schema.User> {
-    const [newUser] = await db.insert(schema.users).values({
-      ...user,
-      createdAt: new Date()
-    }).returning();
+  async createUser(user: InsertUser): Promise<User> {
+    const id = this.userId++;
+    const now = new Date();
+    const newUser: User = { 
+      ...user, 
+      id, 
+      createdAt: now,
+      updatedAt: now
+    };
+    this.users.set(id, newUser);
     return newUser;
   }
   
-  async updateUser(id: number, data: Partial<schema.User>): Promise<schema.User> {
-    const [updatedUser] = await db
-      .update(schema.users)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(schema.users.id, id))
-      .returning();
+  async updateUser(id: number, data: Partial<User>): Promise<User> {
+    const user = await this.getUser(id);
+    if (!user) throw new Error('User not found');
     
-    if (!updatedUser) {
-      throw new Error(`User with id ${id} not found`);
-    }
-    
+    const updatedUser = { 
+      ...user, 
+      ...data,
+      updatedAt: new Date() 
+    };
+    this.users.set(id, updatedUser);
     return updatedUser;
   }
   
-  async updateStripeCustomerId(id: number, stripeCustomerId: string): Promise<schema.User> {
+  async updateStripeCustomerId(id: number, stripeCustomerId: string): Promise<User> {
     return this.updateUser(id, { stripeCustomerId });
   }
   
-  async getAllUsers(): Promise<schema.User[]> {
-    return db.select().from(schema.users);
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
   }
   
   // Category methods
-  async getCategory(id: number): Promise<schema.Category | undefined> {
-    const [category] = await db.select().from(schema.categories).where(eq(schema.categories.id, id));
-    return category;
+  async getCategory(id: number): Promise<Category | undefined> {
+    return this.categories.get(id);
   }
   
-  async getCategoryBySlug(slug: string): Promise<schema.Category | undefined> {
-    const [category] = await db.select().from(schema.categories).where(eq(schema.categories.slug, slug));
-    return category;
+  async getCategoryBySlug(slug: string): Promise<Category | undefined> {
+    return Array.from(this.categories.values()).find(category => category.slug === slug);
   }
   
-  async createCategory(category: schema.InsertCategory): Promise<schema.Category> {
-    const [newCategory] = await db.insert(schema.categories).values(category).returning();
+  async createCategory(category: InsertCategory): Promise<Category> {
+    const id = this.categoryId++;
+    const newCategory: Category = { ...category, id, description: category.description || null };
+    this.categories.set(id, newCategory);
     return newCategory;
   }
   
-  async getAllCategories(): Promise<schema.Category[]> {
-    return db.select().from(schema.categories);
+  async getAllCategories(): Promise<Category[]> {
+    return Array.from(this.categories.values());
   }
   
   // Product methods
-  async getProduct(id: number): Promise<schema.Product | undefined> {
-    const [product] = await db.select().from(schema.products).where(eq(schema.products.id, id));
-    return product;
+  async getProduct(id: number): Promise<Product | undefined> {
+    return this.products.get(id);
   }
   
-  async getProductByStripeId(stripeId: string): Promise<schema.Product | undefined> {
-    const [product] = await db
-      .select()
-      .from(schema.products)
-      .where(eq(schema.products.stripeId, stripeId));
-    
-    return product;
+  async getProductByStripeId(stripeId: string): Promise<Product | undefined> {
+    return Array.from(this.products.values()).find(product => product.stripeId === stripeId);
   }
   
-  async createProduct(product: schema.InsertProduct): Promise<schema.Product> {
-    const [newProduct] = await db.insert(schema.products).values({
-      ...product,
-      isNew: product.isNew || false,
-      isBestSeller: product.isBestSeller || false,
-      isLimited: product.isLimited || false,
-      createdAt: new Date()
-    }).returning();
+  async createProduct(product: InsertProduct): Promise<Product> {
+    const id = this.productId++;
+    const now = new Date();
+    const newProduct: Product = { 
+      ...product, 
+      id, 
+      description: product.description || null,
+      images: product.images || null,
+      categoryId: product.categoryId || null,
+      inventory: product.stock || null,
+      isNew: product.isNew || null,
+      isBestSeller: product.isBestSeller || null,
+      isLimited: product.isLimited || null,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.products.set(id, newProduct);
     return newProduct;
   }
   
-  async updateProduct(id: number, data: Partial<schema.Product>): Promise<schema.Product> {
-    const [updatedProduct] = await db
-      .update(schema.products)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(schema.products.id, id))
-      .returning();
+  async updateProduct(id: number, data: Partial<Product>): Promise<Product> {
+    const product = await this.getProduct(id);
+    if (!product) throw new Error('Product not found');
     
-    if (!updatedProduct) {
-      throw new Error(`Product with id ${id} not found`);
-    }
-    
+    const updatedProduct = { 
+      ...product, 
+      ...data,
+      updatedAt: new Date() 
+    };
+    this.products.set(id, updatedProduct);
     return updatedProduct;
   }
   
-  async updateProductMetadata(
-    id: number,
-    metadata: { 
-      isNew?: boolean, 
-      isBestSeller?: boolean, 
-      isLimited?: boolean, 
-      categoryId?: number 
-    }
-  ): Promise<schema.Product> {
+  async updateProductMetadata(id: number, metadata: { isNew?: boolean, isBestSeller?: boolean, isLimited?: boolean, categoryId?: number }): Promise<Product> {
     return this.updateProduct(id, metadata);
   }
   
-  async getAllProducts(): Promise<schema.Product[]> {
-    return db.select().from(schema.products);
+  async getAllProducts(): Promise<Product[]> {
+    return Array.from(this.products.values());
   }
   
-  async getProductsByCategory(categorySlug: string): Promise<schema.Product[]> {
+  async getProductsByCategory(categorySlug: string): Promise<Product[]> {
     const category = await this.getCategoryBySlug(categorySlug);
-    if (!category) {
-      return [];
-    }
+    if (!category) return [];
     
-    return db
-      .select()
-      .from(schema.products)
-      .where(eq(schema.products.categoryId, category.id));
+    return Array.from(this.products.values()).filter(product => product.categoryId === category.id);
   }
   
-  async getBestSellerProducts(limit?: number): Promise<schema.Product[]> {
-    const query = db
-      .select()
-      .from(schema.products)
-      .where(eq(schema.products.isBestSeller, true));
-    
-    if (limit) {
-      query.limit(limit);
-    }
-    
-    return query;
+  async getBestSellerProducts(limit?: number): Promise<Product[]> {
+    const bestSellers = Array.from(this.products.values()).filter(product => product.isBestSeller);
+    return limit ? bestSellers.slice(0, limit) : bestSellers;
   }
   
-  async getNewProducts(limit?: number): Promise<schema.Product[]> {
-    const query = db
-      .select()
-      .from(schema.products)
-      .where(eq(schema.products.isNew, true));
-    
-    if (limit) {
-      query.limit(limit);
-    }
-    
-    return query;
+  async getNewProducts(limit?: number): Promise<Product[]> {
+    const newProducts = Array.from(this.products.values()).filter(product => product.isNew);
+    return limit ? newProducts.slice(0, limit) : newProducts;
   }
   
   // Cart methods
-  async getCartItem(id: number): Promise<(schema.CartItem & { product: schema.Product }) | undefined> {
-    const [cartItem] = await db
-      .select()
-      .from(schema.cartItems)
-      .where(eq(schema.cartItems.id, id));
+  async getCartItem(id: number): Promise<(CartItem & { product: Product }) | undefined> {
+    const cartItem = this.cartItems.get(id);
+    if (!cartItem) return undefined;
     
-    if (!cartItem) {
-      return undefined;
-    }
-    
-    const product = await this.getProduct(cartItem.productId);
-    if (!product) {
-      throw new Error(`Product with id ${cartItem.productId} not found`);
-    }
+    const product = this.products.get(cartItem.productId);
+    if (!product) return undefined;
     
     return { ...cartItem, product };
   }
   
-  async getCartByUserId(userId: number): Promise<(schema.CartItem & { product: schema.Product })[]> {
-    const cartItems = await db
-      .select()
-      .from(schema.cartItems)
-      .where(eq(schema.cartItems.userId, userId));
+  async getCartByUserId(userId: number): Promise<(CartItem & { product: Product })[]> {
+    const cartItems = Array.from(this.cartItems.values()).filter(item => item.userId === userId);
     
-    const result: (schema.CartItem & { product: schema.Product })[] = [];
-    
-    for (const item of cartItems) {
-      const product = await this.getProduct(item.productId);
-      if (product) {
-        result.push({ ...item, product });
-      }
-    }
-    
-    return result;
+    return cartItems.map(item => {
+      const product = this.products.get(item.productId)!;
+      return { ...item, product };
+    }).filter(item => item.product); // Filter out items with missing products
   }
   
-  async addToCart(cartItem: schema.InsertCartItem): Promise<schema.CartItem> {
+  async addToCart(cartItem: InsertCartItem): Promise<CartItem> {
     // Check if product exists
     const product = await this.getProduct(cartItem.productId);
-    if (!product) {
-      throw new Error(`Product with id ${cartItem.productId} not found`);
-    }
+    if (!product) throw new Error('Product not found');
     
     // Check if item already in cart
-    const [existingItem] = await db
-      .select()
-      .from(schema.cartItems)
-      .where(
-        and(
-          eq(schema.cartItems.userId, cartItem.userId),
-          eq(schema.cartItems.productId, cartItem.productId)
-        )
-      );
+    const existingCartItem = Array.from(this.cartItems.values()).find(
+      item => item.userId === cartItem.userId && item.productId === cartItem.productId
+    );
     
-    if (existingItem) {
+    if (existingCartItem) {
       // Update quantity if already in cart
       return this.updateCartItemQuantity(
-        existingItem.id, 
-        existingItem.quantity + (cartItem.quantity || 1)
+        existingCartItem.id, 
+        existingCartItem.quantity + (cartItem.quantity || 1)
       );
     }
     
-    const [newCartItem] = await db
-      .insert(schema.cartItems)
-      .values({
-        ...cartItem,
-        createdAt: new Date()
-      })
-      .returning();
-    
+    // Add new item to cart
+    const id = this.cartItemId++;
+    const now = new Date();
+    const newCartItem: CartItem = { 
+      ...cartItem, 
+      id, 
+      quantity: cartItem.quantity || 1,
+      createdAt: now 
+    };
+    this.cartItems.set(id, newCartItem);
     return newCartItem;
   }
   
-  async updateCartItemQuantity(id: number, quantity: number): Promise<schema.CartItem> {
-    const [updatedCartItem] = await db
-      .update(schema.cartItems)
-      .set({ quantity })
-      .where(eq(schema.cartItems.id, id))
-      .returning();
+  async updateCartItemQuantity(id: number, quantity: number): Promise<CartItem> {
+    const cartItem = this.cartItems.get(id);
+    if (!cartItem) throw new Error('Cart item not found');
     
-    if (!updatedCartItem) {
-      throw new Error(`Cart item with id ${id} not found`);
-    }
-    
+    const updatedCartItem = { ...cartItem, quantity };
+    this.cartItems.set(id, updatedCartItem);
     return updatedCartItem;
   }
   
   async removeFromCart(id: number): Promise<void> {
-    await db
-      .delete(schema.cartItems)
-      .where(eq(schema.cartItems.id, id));
+    this.cartItems.delete(id);
   }
   
   async clearCart(userId: number): Promise<void> {
-    await db
-      .delete(schema.cartItems)
-      .where(eq(schema.cartItems.userId, userId));
+    const cartItemIds = Array.from(this.cartItems.entries())
+      .filter(([_, item]) => item.userId === userId)
+      .map(([id]) => id);
+    
+    cartItemIds.forEach(id => this.cartItems.delete(id));
   }
   
   // Order methods
-  async getOrder(id: number): Promise<(schema.Order & { items: (schema.OrderItem & { product: schema.Product })[] }) | undefined> {
-    const [order] = await db
-      .select()
-      .from(schema.orders)
-      .where(eq(schema.orders.id, id));
+  async getOrder(id: number): Promise<(Order & { items: (OrderItem & { product: Product })[] }) | undefined> {
+    const order = this.orders.get(id);
+    if (!order) return undefined;
     
-    if (!order) {
-      return undefined;
-    }
-    
-    const orderItems = await db
-      .select()
-      .from(schema.orderItems)
-      .where(eq(schema.orderItems.orderId, id));
-    
-    const items: (schema.OrderItem & { product: schema.Product })[] = [];
-    
-    for (const item of orderItems) {
-      const product = await this.getProduct(item.productId);
-      if (product) {
-        items.push({ ...item, product });
-      }
-    }
+    const items = Array.from(this.orderItems.values())
+      .filter(item => item.orderId === id)
+      .map(item => {
+        const product = this.products.get(item.productId)!;
+        return { ...item, product };
+      })
+      .filter(item => item.product); // Filter out items with missing products
     
     return { ...order, items };
   }
   
-  async createOrder(order: schema.InsertOrder): Promise<schema.Order> {
-    const [newOrder] = await db
-      .insert(schema.orders)
-      .values({
-        ...order,
-        createdAt: new Date()
-      })
-      .returning();
-    
+  async createOrder(order: InsertOrder): Promise<Order> {
+    const id = this.orderId++;
+    const now = new Date();
+    const newOrder: Order = { 
+      ...order, 
+      id, 
+      status: order.status || 'pending',
+      userId: order.userId || null,
+      stripePaymentIntentId: order.stripePaymentIntentId || null,
+      total: order.total || "0",
+      shipping: order.shipping || {},
+      createdAt: now,
+      updatedAt: now
+    };
+    this.orders.set(id, newOrder);
     return newOrder;
   }
   
-  async createOrderItem(orderItem: schema.InsertOrderItem): Promise<schema.OrderItem> {
-    const [newOrderItem] = await db
-      .insert(schema.orderItems)
-      .values(orderItem)
-      .returning();
-    
+  async createOrderItem(orderItem: InsertOrderItem): Promise<OrderItem> {
+    const id = this.orderItemId++;
+    const newOrderItem: OrderItem = { ...orderItem, id };
+    this.orderItems.set(id, newOrderItem);
     return newOrderItem;
   }
   
-  async getOrdersByUserId(userId: number): Promise<(schema.Order & { items: (schema.OrderItem & { product: schema.Product })[] })[]> {
-    const orders = await db
-      .select()
-      .from(schema.orders)
-      .where(eq(schema.orders.userId, userId))
-      .orderBy(desc(schema.orders.createdAt));
+  async getOrdersByUserId(userId: number): Promise<(Order & { items: (OrderItem & { product: Product })[] })[]> {
+    const orders = Array.from(this.orders.values())
+      .filter(order => order.userId === userId)
+      .sort((a, b) => {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
     
-    const result: (schema.Order & { items: (schema.OrderItem & { product: schema.Product })[] })[] = [];
-    
-    for (const order of orders) {
-      const fullOrder = await this.getOrder(order.id);
-      if (fullOrder) {
-        result.push(fullOrder);
-      }
-    }
-    
-    return result;
+    return Promise.all(orders.map(async order => {
+      const orderWithItems = await this.getOrder(order.id);
+      return orderWithItems!;
+    }));
   }
   
-  async getAllOrders(): Promise<(schema.Order & { user: Omit<schema.User, 'password'>, items: (schema.OrderItem & { product: schema.Product })[] })[]> {
-    const orders = await db
-      .select()
-      .from(schema.orders)
-      .orderBy(desc(schema.orders.createdAt));
+  async getAllOrders(): Promise<(Order & { user: Omit<User, 'password'>, items: (OrderItem & { product: Product })[] })[]> {
+    const orders = Array.from(this.orders.values())
+      .sort((a, b) => {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
     
-    const result: (schema.Order & { user: Omit<schema.User, 'password'>, items: (schema.OrderItem & { product: schema.Product })[] })[] = [];
-    
-    for (const order of orders) {
-      const fullOrder = await this.getOrder(order.id);
-      if (fullOrder) {
-        const user = await this.getUser(order.userId);
-        if (user) {
-          const { password, ...userWithoutPassword } = user;
-          result.push({ ...fullOrder, user: userWithoutPassword });
-        }
-      }
-    }
-    
-    return result;
+    return Promise.all(orders.map(async order => {
+      const orderWithItems = await this.getOrder(order.id);
+      if (!orderWithItems) throw new Error('Order not found');
+      
+      const user = this.users.get(order.userId || 0);
+      if (!user) throw new Error('User not found');
+      
+      const { password, ...userWithoutPassword } = user;
+      
+      return {
+        ...orderWithItems,
+        user: userWithoutPassword
+      };
+    }));
   }
   
   // Newsletter methods
-  async getNewsletterSubscriberByEmail(email: string): Promise<schema.NewsletterSubscriber | undefined> {
-    const [subscriber] = await db
-      .select()
-      .from(schema.newsletterSubscribers)
-      .where(eq(schema.newsletterSubscribers.email, email));
-    
-    return subscriber;
+  async getNewsletterSubscriberByEmail(email: string): Promise<NewsletterSubscriber | undefined> {
+    return Array.from(this.newsletterSubscribers.values()).find(
+      subscriber => subscriber.email === email
+    );
   }
   
-  async createNewsletterSubscriber(subscriber: schema.InsertNewsletterSubscriber): Promise<schema.NewsletterSubscriber> {
-    const [newSubscriber] = await db
-      .insert(schema.newsletterSubscribers)
-      .values({
-        ...subscriber,
-        createdAt: new Date()
-      })
-      .returning();
-    
+  async createNewsletterSubscriber(subscriber: InsertNewsletterSubscriber): Promise<NewsletterSubscriber> {
+    const id = this.newsletterId++;
+    const now = new Date();
+    const newSubscriber: NewsletterSubscriber = { 
+      ...subscriber, 
+      id, 
+      createdAt: now,
+      confirmedAt: null
+    };
+    this.newsletterSubscribers.set(id, newSubscriber);
     return newSubscriber;
   }
   
-  async getAllNewsletterSubscribers(): Promise<schema.NewsletterSubscriber[]> {
-    return db.select().from(schema.newsletterSubscribers);
+  async getAllNewsletterSubscribers(): Promise<NewsletterSubscriber[]> {
+    return Array.from(this.newsletterSubscribers.values());
   }
 }
 
-// Initialize database with sample data if empty
-async function initializeDatabase() {
-  try {
-    console.log('Checking if database needs initialization...');
-    
-    // Check if there are any categories
-    const categories = await db.select().from(schema.categories);
-    
-    if (categories.length === 0) {
-      console.log('Database is empty. Initializing with sample data...');
-      
-      // Create sample categories
-      const [earrings] = await db.insert(schema.categories).values({ 
-        name: 'Brincos', 
-        slug: 'earrings', 
-        description: 'Brincos elegantes feitos com aço inoxidável' 
-      }).returning();
-      
-      const [necklaces] = await db.insert(schema.categories).values({ 
-        name: 'Colares', 
-        slug: 'necklaces', 
-        description: 'Colares modernos e delicados para qualquer ocasião' 
-      }).returning();
-      
-      const [bracelets] = await db.insert(schema.categories).values({ 
-        name: 'Pulseiras', 
-        slug: 'bracelets', 
-        description: 'Pulseiras elegantes e estilosas' 
-      }).returning();
-      
-      const [rings] = await db.insert(schema.categories).values({ 
-        name: 'Anéis', 
-        slug: 'rings', 
-        description: 'Anéis exclusivos em aço inoxidável' 
-      }).returning();
-      
-      // Create sample products
-      await db.insert(schema.products).values([
-        {
-          stripeId: 'prod_sample1',
-          name: 'Brinco Pérola Dourado',
-          price: 89.90,
-          description: 'Brinco elegante com pérola e acabamento em aço inoxidável dourado',
-          images: ['/assets/images/products/earring1.jpg'],
-          stock: 15,
-          categoryId: earrings.id,
-          isNew: true,
-          isBestSeller: true,
-          isLimited: false,
-          metadata: {},
-          createdAt: new Date()
-        },
-        {
-          stripeId: 'prod_sample2',
-          name: 'Colar Coração Delicado',
-          price: 129.90,
-          description: 'Colar com pingente de coração em aço inoxidável',
-          images: ['/assets/images/products/necklace1.jpg'],
-          stock: 10,
-          categoryId: necklaces.id,
-          isNew: true,
-          isBestSeller: false,
-          isLimited: false,
-          metadata: {},
-          createdAt: new Date()
-        },
-        {
-          stripeId: 'prod_sample3',
-          name: 'Pulseira de Elos Prateada',
-          price: 79.90,
-          description: 'Pulseira de elos em aço inoxidável com acabamento prata',
-          images: ['/assets/images/products/bracelet1.jpg'],
-          stock: 20,
-          categoryId: bracelets.id,
-          isNew: false,
-          isBestSeller: true,
-          isLimited: false,
-          metadata: {},
-          createdAt: new Date()
-        },
-        {
-          stripeId: 'prod_sample4',
-          name: 'Anel Minimalista',
-          price: 69.90,
-          description: 'Anel minimalista em aço inoxidável',
-          images: ['/assets/images/products/ring1.jpg'],
-          stock: 5,
-          categoryId: rings.id,
-          isNew: false,
-          isBestSeller: false,
-          isLimited: true,
-          metadata: {},
-          createdAt: new Date()
-        }
-      ]);
-      
-      // Create sample admin user
-      const hashedPassword = await bcrypt.hash('admin123', 10);
-      await db.insert(schema.users).values({
-        email: 'admin@drbijuteria.com',
-        name: 'Admin DR Bijuteria',
-        password: hashedPassword,
-        role: 'admin',
-        address: null,
-        phone: null,
-        stripeCustomerId: null,
-        createdAt: new Date()
-      });
-      
-      console.log('Database initialized with sample data successfully');
-    } else {
-      console.log('Database already contains data, skipping initialization');
-    }
-  } catch (error) {
-    console.error('Error initializing database:', error);
-  }
-}
-
-// Initialize the database with sample data
-initializeDatabase();
-
-export const storage = new DrizzleStorage();
+// Exporta a instância de armazenamento
+export const storage = new MemStorage();
